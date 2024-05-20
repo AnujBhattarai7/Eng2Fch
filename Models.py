@@ -5,6 +5,7 @@
 
 START_TOKEN = "<sos>" 
 END_TOKEN = "<eos>" 
+SPACE_TOKEN = " "
 
 # class Encoder(nn.Module):
 class Encoder():

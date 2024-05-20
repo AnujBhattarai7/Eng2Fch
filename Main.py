@@ -1,103 +1,86 @@
-from Models import START_TOKEN, END_TOKEN
+from Models import START_TOKEN, END_TOKEN, SPACE_TOKEN
 # from Models import  torch, nn
-import pandas as pd
 
-import nltk
-nltk.download('punkt')
-
-File = pd.read_csv("Data/eng_-french.csv",nrows=25000)
-File.dropna(subset=["English words/sentences", "French words/sentences"])
-
-EnglishFile = File["English words/sentences"]
-FrenchFile = File["French words/sentences"]
-
-print(File.head(5))
-print(File.tail(5))
-
-print(File.info())
-
-# Index the data
-# Store each unique word
-EnglishVocab = []
-FrenchVocab = []
-
-# Store the Max Len of a specific word
-MaxEnglishLen = 0
-MaxFrenchLen = 0
-
-# Now store the Text Data in Indexes from Vocabs and VocabMap
-EnglishIndicecs = []
-FrenchIndices = []
-
-# Set each unique word and thing to a index
-for x in EnglishFile:
-    Words = nltk.word_tokenize(x)
-    for word in Words:
-        if not(word in EnglishVocab):
-            EnglishVocab.append(word)
-EnglishVocab.append(START_TOKEN)
-EnglishVocab.append(END_TOKEN)
-print(EnglishVocab[:10])
-
-# Set each unique word and thing to a index
-for x in FrenchFile:
-    Words = nltk.word_tokenize(x)
-    for word in Words:
-        if not(word in FrenchVocab):
-            FrenchVocab.append(word)
-FrenchVocab.append(START_TOKEN)
-FrenchVocab.append(END_TOKEN)
-print(FrenchVocab[:10])
-
-# Now use the Index to get the index by using a word
-EnglishVocabMap = {word : x for x, word in enumerate(EnglishVocab)}
-FrenchVocabMap = {word : x for x, word in enumerate(FrenchVocab)}
-
-print("len(EnglishVocabMap): ", len(EnglishVocabMap))
-print("len(FrenchVocabMap): ", len(FrenchVocabMap))
-
-# Get the Max Length of a sentence in the File 
-for x in EnglishFile:
-    if len(x) > MaxEnglishLen:
-        MaxEnglishLen = len(x)
-
-# Get the Max Length of a sentence in the File 
-for x in FrenchFile:
-    if len(x) > MaxFrenchLen:
-        MaxFrenchLen = len(x)
-
-print("MaxEnglishLen: ", MaxEnglishLen)
-print("MaxFrenchLen: ",MaxFrenchLen)
-
-# To convert the data into numerical form required by Torch
-def convert_to_indices(String, vocab_mapping):
-    Indices = []
-    Token = nltk.word_tokenize(String)
+def ReadFile(NLines) -> [str]:
+    try:
+        f = open("Data/eng-fra.txt", encoding="utf-8")
+        FileText = []
     
-    for Seq in Token:
-        Indices.append(vocab_mapping[Seq])
+        for i in range(NLines):
+            FileText.append(f.readline())
+        
+        f.close()
+        return FileText
     
-    return Indices
+    except IOError:
+        raise IOError("File not Found!!")
 
-for x in EnglishFile:
-    EnglishIndicecs.append(convert_to_indices(x, EnglishVocabMap))
+N_LINES = 5000
 
-for x in FrenchFile:
-    FrenchIndices.append(convert_to_indices(x, FrenchVocabMap))
+FileText : list[str] = ReadFile(N_LINES)
+EngText : list[str] = []
+FchText : list[str] = []
 
-# To make the Sequences be a specific len for now respective MaxLength
-def pad_sequences(sequences, max_length, padding_value=0):
-    padded_sequences = []
-    for sequence in sequences:
-        if len(sequence) >= max_length:
-            padded_sequence = sequence[:max_length]
-        else:
-            padded_sequence = sequence + [padding_value] * (max_length - len(sequence))
-        padded_sequences.append(padded_sequence)
+LangNames = ["Eng", "Fch"]
+Lang2Idx = {"Eng" : 0, "Fch" : 1}
 
-    return padded_sequences
+for x in FileText:
+    Line = x.split(sep="\t")
+    Line[Lang2Idx["Fch"]] = Line[-1][:len(Line[-1])-1] + " \n"
+    EngText.append(Line[Lang2Idx["Eng"]])
+    FchText.append(Line[Lang2Idx["Fch"]])
 
-EnglishPadSeq = pad_sequences(EnglishIndicecs, MaxEnglishLen)
-FrenchPadSeq = pad_sequences(FrenchIndices, MaxEnglishLen)
-print((EnglishPadSeq[101]))
-print(EnglishIndicecs[101])
+# Create a Tokenizing Class
+SepWords = ['.', ',','!']
+
+class Lang:
+    def __init__(self, Name) -> None:
+        self.Name = Name
+        self.N_Words = 3
+        self.Word2Idx = {START_TOKEN : 0, END_TOKEN : 1, SPACE_TOKEN : 2}
+        self.Words = [START_TOKEN, END_TOKEN, SPACE_TOKEN]
+
+        for x in SepWords:
+            self.AddWord(x)
+
+    def AddSentence(self, Sentence : str):
+        L = Sentence.split(' ')
+
+        for x in L:
+            # Flag specifing if the x has been updated by the presence of SepWords
+            Updated = False
+
+            # Loop through each of the sep words
+            for SepWord in SepWords:
+                idx = x.find(SepWord)
+                # if idx == -1 then no SepWord found
+                if idx != -1:
+                    # split into multiple strs seperated by SepWord
+                    NL = x.split(SepWord)
+                    for nx in NL:
+                        # Only on normal words add " "
+                        if nx != SepWord:
+                            nx = nx + " "
+                            self.AddWord(nx)
+
+                    # SepWord flag Updated True
+                    Updated = True
+            
+            if Updated == False:
+                x = x + " "
+                self.AddWord(x)
+
+    def AddWord(self, Word : str):
+        if not(Word in self.Words):
+            self.Words.append(Word)
+            self.Word2Idx[Word] = self.N_Words
+            self.N_Words += 1
+
+EngLang = Lang("Eng")
+FchLang = Lang("Fch")
+
+for x in EngText:
+    EngLang.AddSentence(x)
+
+for x in FchText:
+    FchLang.AddSentence(x)
